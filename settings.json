@@ -1,0 +1,61 @@
+{
+  "stream": "sub",
+  "model": "yolo26n.pt",
+  "device": null,
+  "imgsz": 640,
+  "confidence": 0.1,
+  "track_activation_threshold": 0.5,
+  "high_conf_threshold": 0.5,
+  "track_buffer_seconds": 2.0,
+  "stitch_seconds": 1.0,
+  "process_fps": null,
+  "threads": null,
+  "line_margin": 0.03,
+  "min_crossing_frames": 2,
+  "settle_seconds": 1.5,
+  "stay_scope": "none",
+  "max_stay_minutes": 480,
+  "doors": [],
+  "rejoin_seconds": 10,
+  "min_stay_seconds": 5,
+  "cameras": [
+    {
+      "channel": 1,
+      "name": "Main entrance (camera 1)",
+      "mode": "doors",
+      "log": "door_log.csv",
+      "in_label": "Coming in",
+      "out_label": "Going out",
+      "doors": [
+        {
+          "name": "Main entrance",
+          "line": [
+            [
+              0.44,
+              0.5
+            ],
+            [
+              0.66,
+              0.5
+            ]
+          ],
+          "inside": [
+            0.55,
+            0.38
+          ]
+        }
+      ],
+      "threads": 6
+    },
+    {
+      "channel": 2,
+      "name": "Waiting room (camera 2)",
+      "mode": "stay",
+      "log": "stay_log.csv",
+      "process_fps": 5,
+      "rejoin_seconds": 10,
+      "min_stay_seconds": 5,
+      "threads": 3
+    }
+  ]
+}

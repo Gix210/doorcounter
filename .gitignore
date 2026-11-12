@@ -1,0 +1,17 @@
+# NVR login
+lorex.env
+*.env
+!lorex.env.example
+# footage, pictures and counts from a real site
+clips/
+events/
+snapshots/
+reports/
+*.csv
+*.log
+# models and environments
+*.pt
+*.onnx
+*_openvino_model/
+.venv/
+__pycache__/

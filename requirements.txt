@@ -1,0 +1,9 @@
+ultralytics
+trackers
+supervision
+opencv-python
+numpy
+torch
+python-dotenv
+# optional, to run YOLO on an Intel GPU ("device": "intel:gpu" with an exported OpenVINO model)
+openvino

@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>People counter</title>
+<style>
+/* Layout: filter bar on top, then one section per camera (summary tiles, charts, detail table). */
+:root{color-scheme:light;--page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;
+--grid:#e1e0d9;--axis:#c3c2b7;--border:rgba(11,11,11,.10);--s1:#2a78d6;--s2:#eb6834;--accent:#2a78d6;
+--good:#0ca30c;--critical:#d03b3b;--chip:#f0efec}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;
+--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--border:rgba(255,255,255,.10);
+--s1:#3987e5;--s2:#d95926;--accent:#3987e5;--chip:#262624}}
+:root[data-theme="dark"]{color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;
+--grid:#2c2c2a;--axis:#383835;--border:rgba(255,255,255,.10);--s1:#3987e5;--s2:#d95926;--accent:#3987e5;--chip:#262624}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1000px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));
+padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px}
+h1{font-size:22px;margin:0;text-wrap:balance}h2{font-size:18px;margin:14px 0 0}h3{font-size:15px;margin:0}
+.sub,.note{color:var(--muted);font-size:13px;margin:0}
+.status{display:flex;flex-wrap:wrap;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);background:var(--surface);
+border:1px solid var(--border);border-radius:999px;padding:3px 10px}
+.pill i{width:8px;height:8px;border-radius:50%;background:var(--critical)}.pill.ok i{background:var(--good)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;min-width:0;container-type:inline-size}
+.filters{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 14px}
+.pair{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.presets button{font:inherit;font-size:14px;color:var(--ink2);background:var(--chip);border:1px solid transparent;
+border-radius:999px;padding:5px 12px;cursor:pointer}
+.presets button[aria-pressed="true"]{color:var(--surface);background:var(--ink)}
+label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--ink2);letter-spacing:.02em}
+input,select{font:inherit;font-size:14px;color:var(--ink);background:var(--page);border:1px solid var(--axis);
+border-radius:8px;padding:5px 8px;min-width:0}
+.btn{font:inherit;font-size:14px;color:#fff;background:var(--accent);border:0;border-radius:8px;padding:7px 14px;cursor:pointer}
+.btn.ghost{color:var(--ink);background:var(--chip)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.updated{margin-left:auto;font-size:13px;color:var(--muted);align-self:center}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tile .label{color:var(--ink2);font-size:13px}.tile .value{font-size:26px;font-weight:600;margin-top:2px;white-space:nowrap}
+.tile.hero .value{font-size:44px;line-height:1.1}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px}
+.legend{display:flex;gap:16px;color:var(--ink2);font-size:13px;margin:6px 0 0}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+svg{width:100%;height:auto;display:block;overflow:visible;margin-top:8px}
+.grid{stroke:var(--grid);stroke-width:1}.axis{stroke:var(--axis);stroke-width:1}
+.tick{fill:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}.val{fill:var(--ink2);font-size:12px}
+.s1{fill:var(--s1)}.s2{fill:var(--s2)}.hit{fill:transparent}.hit:hover{fill:var(--ink);fill-opacity:.05}
+.empty{color:var(--muted);padding:24px 0;text-align:center}
+.table-wrap{overflow-x:auto;max-height:420px;overflow-y:auto;margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:var(--ink2);font-weight:600;position:sticky;top:0;background:var(--surface)}
+.long{display:inline-block;font-size:12px;color:var(--ink2);background:var(--chip);border-radius:999px;padding:0 8px;margin-left:6px}
+.table-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px}
+#tip{position:fixed;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--border);
+border-radius:8px;padding:6px 10px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.14);display:none;z-index:9}
+#tip b{display:block;font-weight:600}
+.error{color:var(--critical)}
+/* chart text is drawn in a 720-wide viewBox: enlarge it when the chart's card is narrow */
+@container (max-width:560px){.tick{font-size:19px}.val{font-size:21px}}
+@media (max-width:560px){.tile.hero .value{font-size:36px}.updated{margin-left:0}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>People counter</h1>
+      <p class="sub">Main entrance (camera 1) and waiting room (camera 2)</p>
+    </div>
+    <div class="status" id="status"></div>
+  </header>
+
+  <section class="card filters" aria-label="Filters">
+    <div class="presets" id="presets">
+      <button type="button" data-preset="today">Today</button>
+      <button type="button" data-preset="yesterday">Yesterday</button>
+      <button type="button" data-preset="week">Last 7 days</button>
+      <button type="button" data-preset="month">This month</button>
+    </div>
+    <div class="row">
+      <div class="pair">
+        <label for="from">From<input type="datetime-local" id="from"></label>
+        <label for="to">To<input type="datetime-local" id="to"></label>
+      </div>
+      <div class="pair">
+        <label for="dayFrom">Each day from<input type="time" id="dayFrom" value="00:00"></label>
+        <label for="dayTo">until<input type="time" id="dayTo" value="00:00"></label>
+      </div>
+      <div class="pair">
+        <button type="button" class="btn" id="apply">Show</button>
+        <button type="button" class="btn ghost" id="refresh">Refresh</button>
+      </div>
+      <span class="updated" id="updated"></span>
+    </div>
+    <p class="note">"Each day from … until" keeps only that part of every day (e.g. 11:00 until 13:00 for lunch). Leave both at 00:00 for whole days. The page updates itself every 30 minutes.</p>
+  </section>
+
+  <h2 id="doorTitle">Main entrance</h2>
+  <div class="tiles" id="doorTiles"></div>
+  <div class="card"><h3 id="doorChartTitle">Through the door</h3><div id="doorLegend"></div><div id="doorChart"></div></div>
+
+  <h2 id="roomTitle">Waiting room</h2>
+  <div class="tiles" id="roomTiles"></div>
+  <div class="charts">
+    <div class="card"><h3>How long people stayed (minutes)</h3><p class="note">Timed from when a person appears on the camera until they leave it.</p><div id="stayChart"></div></div>
+    <div class="card"><h3 id="arrivalTitle">People coming in</h3><div id="arrivalChart"></div></div>
+  </div>
+  <div class="card">
+    <div class="table-head">
+      <h3 id="visitsTitle">Every visit</h3>
+      <label for="minStay">Show stays
+        <select id="minStay">
+          <option value="0">of any length</option><option value="60">over 1 min</option>
+          <option value="120">over 2 min</option><option value="300">over 5 min</option>
+          <option value="600">over 10 min</option><option value="1800">over 30 min</option>
+        </select>
+      </label>
+    </div>
+    <div class="table-wrap"><table id="visits"></table></div>
+  </div>
+</main>
+<div id="tip"></div>
+
+<script>
+"use strict";
+const REFRESH_MS = 30 * 60 * 1000;
+const LONG_STAY = 600; // stays this long get a "long" tag in the table
+const BUCKETS = [[0, 60, "< 1"], [60, 120, "1–2"], [120, 300, "2–5"], [300, 600, "5–10"],
+                 [600, 1200, "10–20"], [1200, 1800, "20–30"], [1800, 3600, "30–60"], [3600, Infinity, "60 +"]];
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, "0");
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const toInput = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const parse = s => new Date(s.replace(" ", "T"));
+const dayStart = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, d.getHours(), d.getMinutes());
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+let preset = "today";
+let lastData = null;
+
+function duration(s) {
+  s = Math.round(s);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) { const m = Math.floor(s / 60); return m < 10 ? `${m}m ${pad(s % 60)}s` : `${m} min`; }
+  return `${Math.floor(s / 3600)}h ${pad(Math.floor(s / 60) % 60)}m`;
+}
+const median = a => { const b = [...a].sort((x, y) => x - y), m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
+
+// ---------------------------------------------------------------- filters
+function presetRange(name) {
+  const now = new Date(), today = dayStart(now);
+  if (name === "yesterday") return [addDays(today, -1), today];
+  if (name === "week") return [addDays(today, -6), addDays(today, 1)];
+  if (name === "month") return [new Date(now.getFullYear(), now.getMonth(), 1), addDays(today, 1)];
+  return [today, addDays(today, 1)];
+}
+function setPreset(name) {
+  preset = name;
+  const [a, b] = presetRange(name);
+  $("from").value = toInput(a); $("to").value = toInput(b);
+  document.querySelectorAll("#presets button").forEach(btn => btn.setAttribute("aria-pressed", btn.dataset.preset === name));
+}
+function inDayWindow(ts) {
+  const a = $("dayFrom").value || "00:00", b = $("dayTo").value || "00:00";
+  if (a === b) return true;
+  const hm = ts.slice(11, 16);
+  return a < b ? hm >= a && hm < b : hm >= a || hm < b;
+}
+
+// ----------------------------------------------------------------- charts
+const W = 720, H = 240, ML = 40, MR = 12, MT = 14, MB = 30, PW = W - ML - MR, PH = H - MT - MB;
+function niceScale(v) {
+  const raw = Math.max(v, 1) / 4, mag = raw >= 1 ? 10 ** Math.floor(Math.log10(raw)) : 1;
+  const step = [1, 2, 5, 10].map(m => m * mag).find(s => s >= raw);
+  return [step * Math.ceil(Math.max(v, 1) / step), step];
+}
+function column(x, w, value, ymax, cls) {
+  if (value <= 0) return "";
+  const h = PH * value / ymax, r = Math.min(4, h, w / 2), x2 = x + w, y = MT + PH - h, base = MT + PH;
+  return `<path class="${cls}" d="M${x},${base} V${y + r} Q${x},${y} ${x + r},${y} H${x2 - r} Q${x2},${y} ${x2},${y + r} V${base} Z"/>`;
+}
+function columnChart(labels, series, tips, aria, valueLabels) {
+  if (!labels.length) return `<p class="empty">Nothing in this range.</p>`;
+  const [ymax, step] = niceScale(Math.max(...series.flatMap(s => s[1])));
+  const band = PW / labels.length, n = series.length;
+  const bw = Math.max(1, Math.min(n === 1 ? 24 : 12, (band * 0.7 - 2 * (n - 1)) / n));
+  const every = Math.ceil(labels.length / 12);
+  let out = "";
+  for (let v = 0; v <= ymax + 1e-9; v += step) {
+    const y = MT + PH - PH * v / ymax;
+    out += `<line class="grid" x1="${ML}" x2="${W - MR}" y1="${y}" y2="${y}"/><text class="tick" x="${ML - 6}" y="${y + 4}" text-anchor="end">${v}</text>`;
+  }
+  labels.forEach((label, i) => {
+    const cx = ML + band * i + band / 2, x0 = cx - (n * bw + 2 * (n - 1)) / 2;
+    series.forEach(([cls, vals], j) => { out += column(x0 + j * (bw + 2), bw, vals[i], ymax, cls); });
+    const v0 = series[0][1][i];
+    if (valueLabels && v0) out += `<text class="val" x="${cx}" y="${MT + PH - PH * v0 / ymax - 6}" text-anchor="middle">${v0}</text>`;
+    if (i % every === 0) out += `<text class="tick" x="${cx}" y="${H - 10}" text-anchor="middle">${esc(label)}</text>`;
+    out += `<rect class="hit" x="${ML + band * i}" y="${MT}" width="${band}" height="${PH}" data-tip="${esc(tips[i])}"/>`;
+  });
+  out += `<line class="axis" x1="${ML}" x2="${W - MR}" y1="${MT + PH}" y2="${MT + PH}"/>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}">${out}</svg>`;
+}
+function timeBuckets(from, to) {
+  // hours for ranges up to two days, days beyond that
+  const hourly = to - from <= 2 * 864e5, list = [];
+  for (let t = hourly ? new Date(from.getFullYear(), from.getMonth(), from.getDate(), from.getHours()) : dayStart(from);
+       t < to; t = hourly ? new Date(t.getTime() + 36e5) : addDays(t, 1)) {
+    const key = hourly ? `${toInput(t).slice(0, 13)}` : toInput(t).slice(0, 10);
+    list.push({key, label: hourly ? `${pad(t.getHours())}h` : `${MONTHS[t.getMonth()]} ${t.getDate()}`,
+               tip: hourly ? `${MONTHS[t.getMonth()]} ${t.getDate()}, ${pad(t.getHours())}:00–${pad((t.getHours() + 1) % 24)}:00`
+                           : t.toLocaleDateString(undefined, {weekday: "long", month: "long", day: "numeric"})});
+  }
+  return {hourly, list, keyOf: ts => hourly ? ts.slice(0, 13).replace(" ", "T") : ts.slice(0, 10)};
+}
+function tiles(items) {
+  return items.map(([label, value], i) => `<div class="card tile${i === 0 ? " hero" : ""}"><div class="label">${label}</div><div class="value">${value}</div></div>`).join("");
+}
+
+// ----------------------------------------------------------------- render
+function render() {
+  const d = lastData;
+  if (!d) return;
+  const from = parse($("from").value), to = parse($("to").value);
+  const buckets = timeBuckets(from, to);
+  const unit = buckets.hourly ? "per hour" : "per day";
+
+  $("status").innerHTML = d.cameras.map(c => {
+    const when = c.status.last_seen ? c.status.last_seen.slice(5, 16).replace("-", "/") : "never";
+    return `<span class="pill${c.status.running ? " ok" : ""}"><i aria-hidden="true"></i>Camera ${c.channel}: ${c.status.running ? "counting" : "stopped, last " + when}</span>`;
+  }).join("");
+
+  const door = d.cameras.find(c => c.mode === "doors");
+  if (door) {
+    const ev = door.events.filter(e => inDayWindow(e[0]));
+    const ins = ev.filter(e => e[2] === "IN"), outs = ev.filter(e => e[2] === "OUT");
+    const count = rows => { const m = {}; rows.forEach(e => { const k = buckets.keyOf(e[0]); m[k] = (m[k] || 0) + 1; }); return m; };
+    const ci = count(ins), co = count(outs);
+    const busiest = buckets.list.reduce((best, b) => ((ci[b.key] || 0) + (co[b.key] || 0) > (best ? (ci[best.key] || 0) + (co[best.key] || 0) : 0) ? b : best), null);
+    $("doorTitle").textContent = door.name;
+    $("doorTiles").innerHTML = tiles([[esc(door.in_label), ins.length], [esc(door.out_label), outs.length],
+      [buckets.hourly ? "Busiest hour" : "Busiest day", busiest ? busiest.label : "–"]]);
+    $("doorChartTitle").textContent = `Through the door ${unit}`;
+    $("doorLegend").innerHTML = `<div class="legend"><span><i style="background:var(--s1)"></i>${esc(door.in_label)}</span><span><i style="background:var(--s2)"></i>${esc(door.out_label)}</span></div>`;
+    $("doorChart").innerHTML = columnChart(buckets.list.map(b => b.label),
+      [["s1", buckets.list.map(b => ci[b.key] || 0)], ["s2", buckets.list.map(b => co[b.key] || 0)]],
+      buckets.list.map(b => `${b.tip}|${door.in_label} ${ci[b.key] || 0}|${door.out_label} ${co[b.key] || 0}`),
+      "People through the door");
+  }
+
+  const room = d.cameras.find(c => c.mode === "stay");
+  if (room) {
+    const visits = room.visits.filter(v => inDayWindow(v[0]));
+    const stays = visits.map(v => v[2]);
+    $("roomTitle").textContent = room.name;
+    $("roomTiles").innerHTML = tiles([["Visits", visits.length],
+      ["Typical stay", stays.length ? duration(median(stays)) : "–"],
+      ["Average stay", stays.length ? duration(stays.reduce((a, b) => a + b, 0) / stays.length) : "–"],
+      ["Longest stay", stays.length ? duration(Math.max(...stays)) : "–"]]);
+    const hist = BUCKETS.map(([lo, hi]) => stays.filter(s => s >= lo && s < hi).length);
+    $("stayChart").innerHTML = stays.length
+      ? columnChart(BUCKETS.map(b => b[2]), [["s1", hist]], BUCKETS.map((b, i) => `Stayed ${b[2]} min|${hist[i]} visits`), "How long people stayed", true)
+      : `<p class="empty">No visits in this range.</p>`;
+    const arr = {}; visits.forEach(v => { const k = buckets.keyOf(v[0]); arr[k] = (arr[k] || 0) + 1; });
+    $("arrivalTitle").textContent = `People coming in ${unit}`;
+    $("arrivalChart").innerHTML = columnChart(buckets.list.map(b => b.label), [["s1", buckets.list.map(b => arr[b.key] || 0)]],
+      buckets.list.map(b => `${b.tip}|${arr[b.key] || 0} came in`), "People coming into the room", false);
+    const min = +$("minStay").value;
+    const shown = visits.filter(v => v[2] > min).sort((a, b) => b[0].localeCompare(a[0]));
+    $("visitsTitle").textContent = `Every visit (${shown.length})`;
+    $("visits").innerHTML = shown.length
+      ? `<tr><th>Came in</th><th>Left</th><th>Stayed</th></tr>` + shown.map(v =>
+          `<tr><td>${v[0].slice(5, 16).replace("-", "/")}:${v[0].slice(17, 19)}</td><td>${v[1].slice(11)}</td><td>${duration(v[2])}${v[2] >= LONG_STAY ? '<span class="long">long</span>' : ""}</td></tr>`).join("")
+      : `<tr><td class="empty">No visits match.</td></tr>`;
+  }
+  bindTips();
+}
+
+// --------------------------------------------------------------- tooltips
+const tip = $("tip");
+function bindTips() {
+  document.querySelectorAll(".hit[data-tip]").forEach(r => {
+    r.addEventListener("pointermove", e => {
+      const lines = r.dataset.tip.split("|");
+      tip.innerHTML = `<b>${esc(lines[0])}</b>${lines.slice(1).map(esc).join("<br>")}`;
+      tip.style.display = "block";
+      tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + "px";
+      tip.style.top = (e.clientY + 14) + "px";
+    });
+    r.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+  });
+}
+
+// ------------------------------------------------------------------- data
+async function load() {
+  if (preset) setPreset(preset); // a quick range moves with the clock
+  const qs = `from=${encodeURIComponent($("from").value)}&to=${encodeURIComponent($("to").value)}`;
+  $("updated").textContent = "Updating…";
+  try {
+    const res = await fetch(`/api/data?${qs}`, {cache: "no-store"});
+    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    lastData = await res.json();
+    if (lastData.first_day) $("from").min = $("to").min = `${lastData.first_day}T00:00`;
+    const next = new Date(Date.now() + REFRESH_MS);
+    $("updated").textContent = `Updated ${lastData.generated.slice(11, 16)} · next ${pad(next.getHours())}:${pad(next.getMinutes())}`;
+    render();
+  } catch (err) {
+    $("updated").innerHTML = `<span class="error">Could not load the data (${esc(err.message)}). Is dashboard.py running?</span>`;
+  }
+}
+
+document.querySelectorAll("#presets button").forEach(btn => btn.addEventListener("click", () => { setPreset(btn.dataset.preset); load(); }));
+["from", "to"].forEach(id => $(id).addEventListener("input", () => {
+  preset = null;
+  document.querySelectorAll("#presets button").forEach(b => b.setAttribute("aria-pressed", "false"));
+}));
+$("apply").addEventListener("click", load);
+$("refresh").addEventListener("click", load);
+["dayFrom", "dayTo", "minStay"].forEach(id => $(id).addEventListener("change", render));
+setPreset("today");
+load();
+setInterval(load, REFRESH_MS);
+</script>
+</body>
+</html>
